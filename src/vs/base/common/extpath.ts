@@ -6,19 +6,10 @@
 import { isWindows } from 'vs/base/common/platform';
 import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { sep, posix } from 'vs/base/common/path';
+import { sep } from 'vs/base/common/path';
 
 function isPathSeparator(code: number) {
 	return code === CharCode.Slash || code === CharCode.Backslash;
-}
-
-const _posixBadPath = /(\/\.\.?\/)|(\/\.\.?)$|^(\.\.?\/)|(\/\/+)|(\\)/;
-const _winBadPath = /(\\\.\.?\\)|(\\\.\.?)$|^(\.\.?\\)|(\\\\+)|(\/)/;
-
-function _isNormal(path: string, win: boolean): boolean {
-	return win
-		? !_winBadPath.test(path)
-		: !_posixBadPath.test(path);
 }
 
 /**
@@ -29,97 +20,6 @@ function _isNormal(path: string, win: boolean): boolean {
 export function toSlashes(osPath: string) {
 	return osPath.replace(/[\\/]/g, '/');
 }
-
-export function normalizeWithSlashes(path: undefined): undefined;
-export function normalizeWithSlashes(path: null): null;
-export function normalizeWithSlashes(path: string): string;
-export function normalizeWithSlashes(path: string | null | undefined): string | null | undefined {
-
-	if (path === null || path === undefined) {
-		return path;
-	}
-
-	const len = path.length;
-	if (len === 0) {
-		return '.';
-	}
-
-	if (_isNormal(path, false)) {
-		return path;
-	}
-
-	const sep = '/';
-	const root = getRoot(path, sep);
-
-	// skip the root-portion of the path
-	let start = root.length;
-	let skip = false;
-	let res = '';
-
-	for (let end = root.length; end <= len; end++) {
-
-		// either at the end or at a path-separator character
-		if (end === len || isPathSeparator(path.charCodeAt(end))) {
-
-			if (streql(path, start, end, '..')) {
-				// skip current and remove parent (if there is already something)
-				let prev_start = res.lastIndexOf(sep);
-				let prev_part = res.slice(prev_start + 1);
-				if ((root || prev_part.length > 0) && prev_part !== '..') {
-					res = prev_start === -1 ? '' : res.slice(0, prev_start);
-					skip = true;
-				}
-			} else if (streql(path, start, end, '.') && (root || res || end < len - 1)) {
-				// skip current (if there is already something or if there is more to come)
-				skip = true;
-			}
-
-			if (!skip) {
-				let part = path.slice(start, end);
-				if (res !== '' && res[res.length - 1] !== sep) {
-					res += sep;
-				}
-				res += part;
-			}
-			start = end + 1;
-			skip = false;
-		}
-	}
-
-	return root + res;
-}
-
-function streql(value: string, start: number, end: number, other: string): boolean {
-	return start + other.length === end && value.indexOf(other, start) === start;
-}
-
-export const join: (...parts: string[]) => string = function () {
-	// Not using a function with var-args because of how TS compiles
-	// them to JS - it would result in 2*n runtime cost instead
-	// of 1*n, where n is parts.length.
-
-	let value = '';
-	for (let i = 0; i < arguments.length; i++) {
-		let part = arguments[i];
-		if (i > 0) {
-			// add the separater between two parts unless
-			// there already is one
-			let last = value.charCodeAt(value.length - 1);
-			if (!isPathSeparator(last)) {
-				let next = part.charCodeAt(0);
-				if (!isPathSeparator(next)) {
-					value += posix.sep;
-				}
-			}
-		}
-		value += part;
-	}
-
-	return normalizeWithSlashes(value);
-};
-
-
-// #region extpath
 
 /**
  * Computes the _root_ this path, like `getRoot('c:\files') === c:\`,
@@ -267,6 +167,10 @@ export function isValidBasename(name: string | null | undefined): boolean {
 		return false; // Windows: file cannot end with a whitespace
 	}
 
+	if (name.length > 255) {
+		return false; // most file systems do not allow files > 255 lenth
+	}
+
 	return true;
 }
 
@@ -324,5 +228,3 @@ export function isEqualOrParent(path: string, candidate: string, ignoreCase?: bo
 export function isWindowsDriveLetter(char0: number): boolean {
 	return char0 >= CharCode.A && char0 <= CharCode.Z || char0 >= CharCode.a && char0 <= CharCode.z;
 }
-
-// #endregion

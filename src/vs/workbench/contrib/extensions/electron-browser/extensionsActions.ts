@@ -8,13 +8,12 @@ import { localize } from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Throttler, Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
-import * as extpath from 'vs/base/common/extpath';
 import { Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { ActionItem, Separator, IActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -48,7 +47,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { clipboard } from 'electron';
@@ -1126,7 +1125,7 @@ export class ReloadAction extends ExtensionAction {
 export class SetColorThemeAction extends ExtensionAction {
 
 	static getColorThemes(colorThemes: IColorTheme[], extension: IExtension): IColorTheme[] {
-		return colorThemes.filter(c => ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
+		return colorThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
 	}
 
 	private static readonly EnabledClass = 'extension-action theme';
@@ -1785,6 +1784,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 			command: {
 				id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
 				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceRecommendedExtensionsAction.LABEL}`, original: 'Extensions: Configure Recommended Extensions (Workspace)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.workspaceContextKey
 		});
@@ -1796,6 +1796,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 			command: {
 				id: ConfigureWorkspaceFolderRecommendedExtensionsAction.ID,
 				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL}`, original: 'Extensions: Configure Recommended Extensions (Workspace Folder)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.workspaceFolderContextKey
 		});
@@ -1808,7 +1809,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceRecommendationsAction.ADD_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceRecommendationsContextKey
 		});
@@ -1821,7 +1823,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceFolderRecommendationsAction.ADD_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace Folder)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace Folder)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceFolderRecommendationsContextKey
 		});
@@ -1834,7 +1837,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceRecommendationsAction.IGNORE_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceRecommendationsContextKey
 		});
@@ -1847,7 +1851,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceFolderRecommendationsAction.IGNORE_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace Folder)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace Folder)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceFolderRecommendationsContextKey
 		});
@@ -2044,7 +2049,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 	public run(): Promise<void> {
 		switch (this.contextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(extpath.join('.vscode', 'extensions.json')));
+				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(EXTENSIONS_CONFIG));
 			case WorkbenchState.WORKSPACE:
 				return this.openWorkspaceConfigurationFile(this.contextService.getWorkspace().configuration!);
 		}
@@ -2089,7 +2094,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		return Promise.resolve(pickFolderPromise)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
-					return this.openExtensionsFile(workspaceFolder.toResource(extpath.join('.vscode', 'extensions.json')));
+					return this.openExtensionsFile(workspaceFolder.toResource(EXTENSIONS_CONFIG));
 				}
 				return null;
 			});
@@ -2142,7 +2147,7 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 				if (!workspaceFolder) {
 					return Promise.resolve();
 				}
-				const configurationFile = workspaceFolder.toResource(extpath.join('.vscode', 'extensions.json'));
+				const configurationFile = workspaceFolder.toResource(EXTENSIONS_CONFIG);
 				return this.getWorkspaceFolderExtensionsConfigContent(configurationFile).then(content => {
 					const extensionIdLowerCase = extensionId.id.toLowerCase();
 					if (shouldRecommend) {

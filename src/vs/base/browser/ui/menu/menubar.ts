@@ -23,6 +23,7 @@ export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding;
+	alwaysOnMnemonics?: boolean;
 }
 
 export interface MenuBarMenu {
@@ -457,8 +458,8 @@ export class MenuBar extends Disposable {
 
 		// Update the button label to reflect mnemonics
 		titleElement.innerHTML = this.options.enableMnemonics ?
-			strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<mnemonic aria-hidden="true">$1</mnemonic>') :
-			cleanMenuLabel;
+			strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<mnemonic aria-hidden="true">$1</mnemonic>').replace(/&amp;&amp;/g, '&amp;') :
+			cleanMenuLabel.replace(/&&/g, '&');
 
 		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
 
@@ -723,7 +724,7 @@ export class MenuBar extends Disposable {
 				if (menuBarMenu.titleElement.children.length) {
 					let child = menuBarMenu.titleElement.children.item(0) as HTMLElement;
 					if (child) {
-						child.style.textDecoration = visible ? 'underline' : null;
+						child.style.textDecoration = (this.options.alwaysOnMnemonics || visible) ? 'underline' : null;
 					}
 				}
 			});
@@ -850,7 +851,7 @@ export class MenuBar extends Disposable {
 		let menuOptions: IMenuOptions = {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
-			enableMnemonics: this.mnemonicsInUse && this.options.enableMnemonics,
+			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
 			ariaLabel: customMenu.buttonElement.attributes['aria-label'].value
 		};
 

@@ -461,14 +461,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel | undefined): Promise<any> | undefined {
+	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
 		if (this._model) {
 			return this._onNewModel();
 		}
-		return undefined;
+		return Promise.resolve();
 	}
 
 	private _onNewModel(): Promise<any> {
@@ -488,7 +488,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._disposeOnNewModel.push(this._decorationsManager);
 
 		// listen on model changes
-		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
+		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.rerender(reference)));
 
 		// listen on editor
 		this._disposeOnNewModel.push(this._preview.onMouseDown(e => {

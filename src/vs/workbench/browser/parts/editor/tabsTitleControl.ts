@@ -993,8 +993,8 @@ export class TabsTitleControl extends TitleControl {
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;
 		const totalContainerWidth = this.tabsContainer.scrollWidth;
 
-		let activeTabPosX: number;
-		let activeTabWidth: number;
+		let activeTabPosX: number | undefined;
+		let activeTabWidth: number | undefined;
 
 		if (!this.blockRevealActiveTab) {
 			activeTabPosX = activeTab.offsetLeft;
@@ -1145,6 +1145,16 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label,
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-close .action-label {
 				opacity: 1 !important;
+			}
+		`);
+	}
+
+	// High Contrast Border Color for Editor Actions
+	const contrastBorderColor = theme.getColor(contrastBorder);
+	if (contrastBorder) {
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+				outline: 1px solid ${contrastBorderColor}
 			}
 		`);
 	}

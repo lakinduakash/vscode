@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toSlashes } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
@@ -21,6 +20,7 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
+import { startsWith } from 'vs/base/common/strings';
 
 let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 
@@ -36,17 +36,26 @@ const tokenGroupToScopesMap: { [setting: string]: string[] } = {
 
 export class ColorThemeData implements IColorTheme {
 
-	private constructor() {
-	}
-
 	id: string;
 	label: string;
 	settingsId: string;
 	description?: string;
 	isLoaded: boolean;
 	location?: URI;
-	watch: boolean;
-	extensionData: ExtensionData;
+	watch?: boolean;
+	extensionData?: ExtensionData;
+
+	private themeTokenColors: ITokenColorizationRule[] = [];
+	private customTokenColors: ITokenColorizationRule[] = [];
+	private colorMap: IColorMap = {};
+	private customColorMap: IColorMap = {};
+
+	private constructor(id: string, label: string, settingsId: string) {
+		this.id = id;
+		this.label = label;
+		this.settingsId = settingsId;
+		this.isLoaded = false;
+	}
 
 	get tokenColors(): ITokenColorizationRule[] {
 		// Add the custom colors after the theme colors
@@ -54,10 +63,7 @@ export class ColorThemeData implements IColorTheme {
 		return this.themeTokenColors.concat(this.customTokenColors);
 	}
 
-	private themeTokenColors: ITokenColorizationRule[] = [];
-	private customTokenColors: ITokenColorizationRule[] = [];
-	private colorMap: IColorMap = {};
-	private customColorMap: IColorMap = {};
+
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
 		let color: Color | undefined = this.customColorMap[colorId];
@@ -212,10 +218,7 @@ export class ColorThemeData implements IColorTheme {
 	// constructors
 
 	static createUnloadedTheme(id: string): ColorThemeData {
-		let themeData = new ColorThemeData();
-		themeData.id = id;
-		themeData.label = '';
-		themeData.settingsId = '__' + id;
+		let themeData = new ColorThemeData(id, '', '__' + id);
 		themeData.isLoaded = false;
 		themeData.themeTokenColors = [{ settings: {} }];
 		themeData.watch = false;
@@ -223,10 +226,7 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	static createLoadedEmptyTheme(id: string, settingsId: string): ColorThemeData {
-		let themeData = new ColorThemeData();
-		themeData.id = id;
-		themeData.label = '';
-		themeData.settingsId = settingsId;
+		let themeData = new ColorThemeData(id, '', settingsId);
 		themeData.isLoaded = true;
 		themeData.themeTokenColors = [{ settings: {} }];
 		themeData.watch = false;
@@ -236,7 +236,7 @@ export class ColorThemeData implements IColorTheme {
 	static fromStorageData(input: string): ColorThemeData | undefined {
 		try {
 			let data = JSON.parse(input);
-			let theme = new ColorThemeData();
+			let theme = new ColorThemeData('', '', '');
 			for (let key in data) {
 				switch (key) {
 					case 'colorMap':
@@ -251,6 +251,9 @@ export class ColorThemeData implements IColorTheme {
 						break;
 				}
 			}
+			if (!theme.id || !theme.settingsId) {
+				return undefined;
+			}
 			return theme;
 		} catch (e) {
 			return undefined;
@@ -258,13 +261,12 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	static fromExtensionTheme(theme: IThemeExtensionPoint, colorThemeLocation: URI, extensionData: ExtensionData): ColorThemeData {
-		let baseTheme: string = theme['uiTheme'] || 'vs-dark';
-
-		let themeSelector = toCSSSelector(extensionData.extensionId + '-' + toSlashes(theme.path));
-		let themeData = new ColorThemeData();
-		themeData.id = `${baseTheme} ${themeSelector}`;
-		themeData.label = theme.label || basename(theme.path);
-		themeData.settingsId = theme.id || themeData.label;
+		const baseTheme: string = theme['uiTheme'] || 'vs-dark';
+		const themeSelector = toCSSSelector(extensionData.extensionId, theme.path);
+		const id = `${baseTheme} ${themeSelector}`;
+		const label = theme.label || basename(theme.path);
+		const settingsId = theme.id || label;
+		const themeData = new ColorThemeData(id, label, settingsId);
 		themeData.description = theme.description;
 		themeData.watch = theme._watch === true;
 		themeData.location = colorThemeLocation;
@@ -274,7 +276,13 @@ export class ColorThemeData implements IColorTheme {
 	}
 }
 
-function toCSSSelector(str: string) {
+function toCSSSelector(extensionId: string, path: string) {
+	if (startsWith(path, './')) {
+		path = path.substr(2);
+	}
+	let str = `${extensionId}-${path}`;
+
+	//remove all characters that are not allowed in css
 	str = str.replace(/[^_\-a-zA-Z0-9]/g, '-');
 	if (str.charAt(0).match(/[0-9\-]/)) {
 		str = '_' + str;

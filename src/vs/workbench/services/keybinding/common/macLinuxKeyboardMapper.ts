@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding, BaseResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
 
 export interface IMacLinuxKeyMapping {
 	value: string;
@@ -724,6 +725,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				const hwAltKey = (mod & 0b100) ? true : false;
 				const scanCodeCombo = new ScanCodeCombo(hwCtrlKey, hwShiftKey, hwAltKey, scanCode);
 				const resolvedKb = this.resolveKeyboardEvent({
+					_standardKeyboardEventBrand: true,
 					ctrlKey: scanCodeCombo.ctrlKey,
 					shiftKey: scanCodeCombo.shiftKey,
 					altKey: scanCodeCombo.altKey,
@@ -966,6 +968,13 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		for (let part of keybinding.parts) {
 			chordParts.push(this.simpleKeybindingToScanCodeBinding(part));
 		}
+		return this._toResolvedKeybinding(chordParts);
+	}
+
+	private _toResolvedKeybinding(chordParts: ScanCodeBinding[][]): NativeResolvedKeybinding[] {
+		if (chordParts.length === 0) {
+			return [];
+		}
 		let result: NativeResolvedKeybinding[] = [];
 		this._generateResolvedKeybindings(chordParts, 0, [], result);
 		return result;
@@ -1052,17 +1061,9 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this.simpleKeybindingToScanCodeBinding(binding);
 	}
 
-	public resolveUserBinding(_firstPart: SimpleKeybinding | ScanCodeBinding | null, _chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[] {
-		let parts: ScanCodeBinding[][] = [];
-		if (_firstPart) {
-			parts.push(this._resolveSimpleUserBinding(_firstPart));
-		}
-		if (_chordPart) {
-			parts.push(this._resolveSimpleUserBinding(_chordPart));
-		}
-		let result: NativeResolvedKeybinding[] = [];
-		this._generateResolvedKeybindings(parts, 0, [], result);
-		return result;
+	public resolveUserBinding(input: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] {
+		const parts: ScanCodeBinding[][] = input.map(keybinding => this._resolveSimpleUserBinding(keybinding));
+		return this._toResolvedKeybinding(parts);
 	}
 
 	private static _charCodeToKb(charCode: number): { keyCode: KeyCode; shiftKey: boolean } | null {

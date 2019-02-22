@@ -22,13 +22,13 @@ export interface WebviewOptions {
 	readonly allowSvgs?: boolean;
 	readonly useSameOriginForRoot?: boolean;
 	readonly extensionLocation?: URI;
+	readonly enableFindWidget?: boolean;
 }
 
 export interface WebviewContentOptions {
 	readonly allowScripts?: boolean;
 	readonly svgWhiteList?: string[];
 	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly disableFindView?: boolean;
 }
 
 interface IKeydownEvent {
@@ -140,6 +140,9 @@ class SvgBlocker extends Disposable {
 }
 
 class WebviewKeyboardHandler extends Disposable {
+
+	private _ignoreMenuShortcut = false;
+
 	constructor(
 		private readonly _webview: Electron.WebviewTag
 	) {
@@ -150,8 +153,9 @@ class WebviewKeyboardHandler extends Disposable {
 				const contents = this.getWebContents();
 				if (contents) {
 					contents.on('before-input-event', (_event, input) => {
-						if (input.type === 'keyDown') {
-							this.setIgnoreMenuShortcuts(input.control || input.meta);
+						if (input.type === 'keyDown' && document.activeElement === this._webview) {
+							this._ignoreMenuShortcut = input.control || input.meta;
+							this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
 						}
 					});
 				}
@@ -166,6 +170,10 @@ class WebviewKeyboardHandler extends Disposable {
 					// keybinding service because these events do not bubble to the parent window anymore.
 					this.handleKeydown(event.args[0]);
 					return;
+
+				case 'did-focus':
+					this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
+					break;
 
 				case 'did-blur':
 					this.setIgnoreMenuShortcuts(false);
@@ -335,7 +343,7 @@ export class WebviewElement extends Disposable {
 			this._send('devtools-opened');
 		}));
 
-		if (!this.options || !this.options.disableFindView) {
+		if (_options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 		}
 

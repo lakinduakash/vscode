@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as perf from 'vs/base/common/performance';
+import * as fs from 'fs';
+import * as gracefulFs from 'graceful-fs';
+import { createHash } from 'crypto';
+import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
-import * as browser from 'vs/base/browser/browser';
-import { domContentLoaded } from 'vs/base/browser/dom';
+import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
+import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as comparer from 'vs/base/common/comparers';
-import * as platform from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
@@ -32,7 +32,6 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/node/workspacesIpc';
 import { IWorkspacesService, ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { StorageService } from 'vs/platform/storage/node/storageService';
 import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
@@ -44,17 +43,17 @@ import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/node/extfs';
 import { basename } from 'vs/base/common/path';
-import { createHash } from 'crypto';
-import { IdleValue } from 'vs/base/common/async';
-import { setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 
-export class CodeWindow extends Disposable {
+class CodeRendererMain extends Disposable {
+
+	private workbench: Workbench;
 
 	constructor(private readonly configuration: IWindowConfiguration) {
 		super();
@@ -71,28 +70,15 @@ export class CodeWindow extends Disposable {
 		this.reviveUris();
 
 		// Setup perf
-		perf.importEntries(this.configuration.perfEntries);
-
-		// Configure emitter leak warning threshold
-		setGlobalLeakWarningThreshold(175);
+		importEntries(this.configuration.perfEntries);
 
 		// Browser config
-		browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
-		browser.setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
-		browser.setFullscreen(!!this.configuration.fullscreen);
-		browser.setAccessibilitySupport(this.configuration.accessibilitySupport ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
+		setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
+		setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
+		setFullscreen(!!this.configuration.fullscreen);
 
 		// Keyboard support
 		KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
-
-		// Setup Intl for comparers
-		comparer.setFileNameComparer(new IdleValue(() => {
-			const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-			return {
-				collator: collator,
-				collatorIsNumeric: collator.resolvedOptions().numeric
-			};
-		}));
 	}
 
 	private reviveUris() {
@@ -116,77 +102,98 @@ export class CodeWindow extends Disposable {
 	}
 
 	open(): Promise<void> {
-		const mainProcessClient = this._register(new ElectronIPCClient(`window:${this.configuration.windowId}`));
+		const electronMainClient = this._register(new ElectronIPCClient(`window:${this.configuration.windowId}`));
 
-		return this.initServices(mainProcessClient).then(services => {
+		return this.initServices(electronMainClient).then(services => {
 
 			return domContentLoaded().then(() => {
-				perf.mark('willStartWorkbench');
+				mark('willStartWorkbench');
 
 				const instantiationService = new InstantiationService(services, true);
 
 				// Create Workbench
-				const workbench: Workbench = instantiationService.createInstance(
+				this.workbench = instantiationService.createInstance(
 					Workbench,
 					document.body,
 					this.configuration,
-					services,
-					mainProcessClient
+					services
 				);
 
+				// Layout
+				this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+
 				// Workbench Lifecycle
-				this._register(workbench.onShutdown(() => this.dispose()));
-				this._register(workbench.onWillShutdown(event => event.join((services.get(IStorageService) as StorageService).close())));
+				this._register(this.workbench.onShutdown(() => this.dispose()));
+				this._register(this.workbench.onWillShutdown(event => event.join((services.get(IStorageService) as StorageService).close())));
 
 				// Startup
-				workbench.startup();
+				this.workbench.startup();
 
 				// Window
 				this._register(instantiationService.createInstance(ElectronWindow));
 
-				// Inform user about loading issues from the loader
-				(<any>self).require.config({
-					onError: err => {
-						if (err.errorCode === 'load') {
-							onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
-						}
-					}
-				});
+				// Driver
+				if (this.configuration.driverHandle) {
+					registerWindowDriver(electronMainClient, this.configuration.windowId, instantiationService).then(disposable => this._register(disposable));
+				}
+
+				// Config Exporter
+				if (this.configuration['export-default-configuration']) {
+					instantiationService.createInstance(DefaultConfigurationExportHelper);
+				}
 			});
 		});
 	}
 
-	private initServices(mainProcessClient: ElectronIPCClient): Promise<ServiceCollection> {
+	private onWindowResize(e: any, retry: boolean): void {
+		if (e.target === window) {
+			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
+				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled
+				// where for some reason the window clientWidth is reported as 0 when switching
+				// between simple fullscreen and normal screen. In that case we schedule the layout
+				// call at the next animation frame once, in the hope that the dimensions are
+				// proper then.
+				if (retry) {
+					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
+				}
+				return;
+			}
+
+			this.workbench.layout();
+		}
+	}
+
+	private initServices(electronMainClient: ElectronIPCClient): Promise<ServiceCollection> {
 		const serviceCollection = new ServiceCollection();
 
-		// Windows Channel
-		const windowsChannel = mainProcessClient.getChannel('windows');
+		// Windows Service
+		const windowsChannel = electronMainClient.getChannel('windows');
 		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
 
-		// Update Channel
-		const updateChannel = mainProcessClient.getChannel('update');
+		// Update Service
+		const updateChannel = electronMainClient.getChannel('update');
 		serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, [updateChannel]));
 
-		// URL Channel
-		const urlChannel = mainProcessClient.getChannel('url');
+		// URL Service
+		const urlChannel = electronMainClient.getChannel('url');
 		const mainUrlService = new URLServiceChannelClient(urlChannel);
 		const urlService = new RelayURLService(mainUrlService);
 		serviceCollection.set(IURLService, urlService);
 
-		// URLHandler Channel
+		// URLHandler Service
 		const urlHandlerChannel = new URLHandlerChannel(urlService);
-		mainProcessClient.registerChannel('urlHandler', urlHandlerChannel);
+		electronMainClient.registerChannel('urlHandler', urlHandlerChannel);
 
-		// Issue Channel
-		const issueChannel = mainProcessClient.getChannel('issue');
+		// Issue Service
+		const issueChannel = electronMainClient.getChannel('issue');
 		serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, [issueChannel]));
 
-		// Menubar Channel
-		const menubarChannel = mainProcessClient.getChannel('menubar');
+		// Menubar Service
+		const menubarChannel = electronMainClient.getChannel('menubar');
 		serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, [menubarChannel]));
 
-		// Workspaces Channel
-		const workspacesChannel = mainProcessClient.getChannel('workspaces');
+		// Workspaces Service
+		const workspacesChannel = electronMainClient.getChannel('workspaces');
 		serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
 
 		// Environment
@@ -194,7 +201,7 @@ export class CodeWindow extends Disposable {
 		serviceCollection.set(IEnvironmentService, environmentService);
 
 		// Log
-		const logService = this._register(this.createLogService(mainProcessClient, environmentService));
+		const logService = this._register(this.createLogService(electronMainClient, environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Resolve a workspace payload that we can get the workspace ID from
@@ -206,7 +213,7 @@ export class CodeWindow extends Disposable {
 				this.createWorkspaceService(payload, environmentService, logService),
 
 				// Create and initialize storage service
-				this.createStorageService(payload, environmentService, logService, mainProcessClient)
+				this.createStorageService(payload, environmentService, logService, electronMainClient)
 			]).then(services => {
 				serviceCollection.set(IWorkspaceContextService, services[0]);
 				serviceCollection.set(IConfigurationService, services[0]);
@@ -259,11 +266,11 @@ export class CodeWindow extends Disposable {
 
 		function computeLocalDiskFolderId(folder: uri, stat: fs.Stats): string {
 			let ctime: number | undefined;
-			if (platform.isLinux) {
+			if (isLinux) {
 				ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-			} else if (platform.isMacintosh) {
+			} else if (isMacintosh) {
 				ctime = stat.birthtime.getTime(); // macOS: birthtime is fine to use as is
-			} else if (platform.isWindows) {
+			} else if (isWindows) {
 				if (typeof stat.birthtimeMs === 'number') {
 					ctime = Math.floor(stat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
 				} else {
@@ -298,8 +305,8 @@ export class CodeWindow extends Disposable {
 		});
 	}
 
-	private createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessClient: ElectronIPCClient): Promise<StorageService> {
-		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessClient.getChannel('storage'));
+	private createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, electronMainClient: ElectronIPCClient): Promise<StorageService> {
+		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(electronMainClient.getChannel('storage'));
 		const storageService = new StorageService(globalStorageDatabase, logService, environmentService);
 
 		return storageService.initialize(payload).then(() => storageService, error => {
@@ -310,18 +317,18 @@ export class CodeWindow extends Disposable {
 		});
 	}
 
-	private createLogService(mainProcessClient: ElectronIPCClient, environmentService: IEnvironmentService): ILogService {
+	private createLogService(electronMainClient: ElectronIPCClient, environmentService: IEnvironmentService): ILogService {
 		const spdlogService = createSpdLogService(`renderer${this.configuration.windowId}`, this.configuration.logLevel, environmentService.logsPath);
 		const consoleLogService = new ConsoleLogService(this.configuration.logLevel);
 		const logService = new MultiplexLogService([consoleLogService, spdlogService]);
-		const logLevelClient = new LogLevelSetterChannelClient(mainProcessClient.getChannel('loglevel'));
+		const logLevelClient = new LogLevelSetterChannelClient(electronMainClient.getChannel('loglevel'));
 
 		return new FollowerLogService(logLevelClient, logService);
 	}
 }
 
 export function main(configuration: IWindowConfiguration): Promise<void> {
-	const window = new CodeWindow(configuration);
+	const renderer = new CodeRendererMain(configuration);
 
-	return window.open();
+	return renderer.open();
 }

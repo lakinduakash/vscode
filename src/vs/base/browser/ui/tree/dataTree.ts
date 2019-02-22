@@ -89,10 +89,19 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		this._refresh(element);
 	}
 
+	resort(element: T | TInput = this.input!, recursive = true): void {
+		this.model.resort((element === this.input ? null : element) as T, recursive);
+	}
+
 	// View
 
-	refresh(element: T): void {
-		this.model.refresh(element);
+	refresh(element?: T): void {
+		if (element === undefined) {
+			this.view.rerender();
+			return;
+		}
+
+		this.model.rerender(element);
 	}
 
 	// Implementation

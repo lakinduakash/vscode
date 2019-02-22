@@ -104,6 +104,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -142,6 +143,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -285,6 +287,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -304,11 +307,17 @@ suite('keyboardMapper - MAC de_ch', () => {
 		);
 	});
 
+	test('resolveUserBinding empty', () => {
+		assertResolveUserBinding(mapper, [], []);
+	});
+
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
 		assertResolveUserBinding(
 			mapper,
-			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			[
+				new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
+				new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			],
 			[{
 				label: '⌘, ⇧⌘7',
 				ariaLabel: 'Command+, Shift+Command+7',
@@ -325,6 +334,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -348,6 +358,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -384,8 +395,10 @@ suite('keyboardMapper - MAC en_us', () => {
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
 		assertResolveUserBinding(
 			mapper,
-			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			[
+				new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
+				new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			],
 			[{
 				label: '⌘, ⌘/',
 				ariaLabel: 'Command+, Command+/',
@@ -402,6 +415,7 @@ suite('keyboardMapper - MAC en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -425,6 +439,7 @@ suite('keyboardMapper - MAC en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -515,6 +530,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -545,6 +561,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -688,6 +705,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -711,6 +729,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -732,9 +751,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			],
 			[{
 				label: 'Ctrl+, Ctrl+Shift+7',
 				ariaLabel: 'Control+, Control+Shift+7',
@@ -751,6 +771,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -774,6 +795,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -845,6 +867,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -883,6 +906,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1026,6 +1050,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1087,6 +1112,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1108,9 +1134,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			],
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
@@ -1125,9 +1152,9 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveUserBinding Ctrl+[Comma]', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			null,
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma)
+			],
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',
@@ -1144,6 +1171,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1167,6 +1195,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1202,6 +1231,7 @@ suite('keyboardMapper', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1228,6 +1258,7 @@ suite('keyboardMapper', () => {
 			assertResolveKeyboardEvent(
 				mapper,
 				{
+					_standardKeyboardEventBrand: true,
 					ctrlKey: false,
 					shiftKey: false,
 					altKey: false,
@@ -1267,6 +1298,7 @@ suite('keyboardMapper', () => {
 			assertResolveKeyboardEvent(
 				mapper,
 				{
+					_standardKeyboardEventBrand: true,
 					ctrlKey: false,
 					shiftKey: false,
 					altKey: false,
@@ -1362,6 +1394,7 @@ suite('keyboardMapper - LINUX en_uk', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: true,
